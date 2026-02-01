@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-Mark Hockings
-​Mark Hockings​
-#!/usr/bin/env python3
+​#!/usr/bin/env python3
 """
 Text-to-Video Word Player
 A GUI application that displays pasted text one word at a time with BPM-based timing.

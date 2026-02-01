@@ -2,7 +2,7 @@
 """
 Text-to-Video Word Player
 A GUI application that displays pasted text one word at a time with BPM-based timing.
-Supports video export to AVI, MP4, and MOV formats with loop support.
+Supports video export to AVI, MP4, MOV, and ProRes 4444 formats with loop support.
 """
 
 import tkinter as tk

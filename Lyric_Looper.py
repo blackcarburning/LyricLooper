@@ -60,7 +60,8 @@ class TextVideoPlayer:
     def __init__(self, root):
         self.root = root
         self.root.title("Text-to-Video Word Player")
-        self.root.geometry("1400x950")
+        self.root.geometry("1600x1000")
+        self.root.minsize(1200, 800)
         
         self.is_playing = False
         self.is_paused = False
@@ -106,12 +107,14 @@ class TextVideoPlayer:
         self.export_fps = tk.IntVar(value=30)
         self.export_format = tk.StringVar(value="mp4")
         self.export_resolution = tk.StringVar(value="1920x1080")
+        self.export_transparent = tk.BooleanVar(value=False)
         
         if AUDIO_AVAILABLE:
             self.metronome_sound = MetronomeSound()
         
         self.setup_ui()
-        self.update_video_aspect()
+        # Delay aspect update until window is fully rendered
+        self.root.after(100, self.update_video_aspect)
         self.update_timing_display()
         
     def setup_ui(self):
@@ -210,7 +213,7 @@ class TextVideoPlayer:
             format_frame.pack(fill=tk.X, pady=2)
             ttk.Label(format_frame, text="Format:").pack(side=tk.LEFT)
             ttk.Combobox(format_frame, textvariable=self.export_format,
-                        values=["mp4", "avi", "mov"], state="readonly", width=8).pack(side=tk.LEFT, padx=5)
+                        values=["mp4", "avi", "mov", "png_sequence"], state="readonly", width=12).pack(side=tk.LEFT, padx=5)
             ttk.Label(format_frame, text="FPS:").pack(side=tk.LEFT, padx=(10, 0))
             ttk.Combobox(format_frame, textvariable=self.export_fps,
                         values=[24, 25, 30, 48, 50, 60], width=6).pack(side=tk.LEFT, padx=5)
@@ -221,6 +224,9 @@ class TextVideoPlayer:
             ttk.Combobox(res_frame, textvariable=self.export_resolution,
                         values=["1920x1080", "1280x720", "3840x2160", 
                                "1080x1920", "720x1280", "1080x1080"], width=12).pack(side=tk.LEFT, padx=5)
+            
+            ttk.Checkbutton(export_frame, text="Transparent Background", 
+                           variable=self.export_transparent).pack(anchor=tk.W, pady=2)
             
             ttk.Button(export_frame, text="Export Video", command=self.export_video).pack(pady=5)
             self.export_progress = ttk.Progressbar(export_frame, mode='determinate')
@@ -846,49 +852,77 @@ class TextVideoPlayer:
             self.refresh_display()
 
     def pick_screen_color(self):
-        win = tk.Toplevel(self.root)
-        win.title("Color Picker")
-        win.geometry("280x180")
-        win.attributes("-topmost", True)
+        """Screen-wide eyedropper tool to pick colors from anywhere"""
+        try:
+            from PIL import ImageGrab
+        except ImportError:
+            messagebox.showerror("Error", "PIL/Pillow is required for screen color picker")
+            return
         
-        ttk.Label(win, text="Enter Hex Color:").pack(pady=10)
-        entry = ttk.Entry(win, width=15)
-        entry.pack()
-        entry.insert(0, "#")
+        # Capture screenshot before showing overlay
+        screenshot = ImageGrab.grab()
         
-        preview = tk.Frame(win, width=50, height=50, bg="#FFF", relief=tk.SUNKEN, bd=2)
-        preview.pack(pady=10)
+        # Create fullscreen overlay window
+        picker_win = tk.Toplevel(self.root)
+        picker_win.attributes('-fullscreen', True)
+        picker_win.attributes('-alpha', 0.3)  # Semi-transparent
+        picker_win.attributes('-topmost', True)
+        picker_win.config(cursor="cross", bg="black")
         
-        def update(*args):
+        # Instructions label
+        info_label = tk.Label(picker_win, text="Click anywhere to pick a color | Press ESC to cancel",
+                             font=("Arial", 16, "bold"), fg="white", bg="black")
+        info_label.place(relx=0.5, rely=0.05, anchor="center")
+        
+        def on_click(event):
+            x, y = event.x_root, event.y_root
+            # Get color from screenshot
             try:
-                c = entry.get()
-                if len(c) == 7 and c[0] == '#':
-                    preview.config(bg=c)
-            except: pass
-        entry.bind("<KeyRelease>", update)
+                color = screenshot.getpixel((x, y))
+                hex_color = '#{:02x}{:02x}{:02x}'.format(*color[:3])  # Handle RGBA
+                picker_win.destroy()
+                
+                # Show dialog to apply to text or background
+                apply_win = tk.Toplevel(self.root)
+                apply_win.title("Apply Color")
+                apply_win.geometry("300x200")
+                apply_win.attributes("-topmost", True)
+                apply_win.transient(self.root)
+                
+                ttk.Label(apply_win, text=f"Selected Color: {hex_color}", 
+                         font=("Arial", 11, "bold")).pack(pady=10)
+                
+                preview = tk.Frame(apply_win, width=100, height=50, bg=hex_color, 
+                                  relief=tk.SUNKEN, bd=3)
+                preview.pack(pady=10)
+                preview.pack_propagate(False)
+                
+                btn_frame = ttk.Frame(apply_win)
+                btn_frame.pack(pady=10)
+                
+                def apply_text():
+                    self.font_color = hex_color
+                    self.font_color_btn.config(bg=hex_color)
+                    self.refresh_display()
+                    apply_win.destroy()
+                
+                def apply_bg():
+                    self.bg_color = hex_color
+                    self.bg_color_btn.config(bg=hex_color)
+                    self.video_canvas.config(bg=hex_color)
+                    self.refresh_display()
+                    apply_win.destroy()
+                
+                ttk.Button(btn_frame, text="Apply to Text", command=apply_text).pack(side=tk.LEFT, padx=5)
+                ttk.Button(btn_frame, text="Apply to Background", command=apply_bg).pack(side=tk.LEFT, padx=5)
+                ttk.Button(btn_frame, text="Cancel", command=apply_win.destroy).pack(side=tk.LEFT, padx=5)
+                
+            except Exception as e:
+                picker_win.destroy()
+                messagebox.showerror("Error", f"Failed to pick color: {e}")
         
-        btn_frame = ttk.Frame(win)
-        btn_frame.pack(pady=5)
-        
-        def apply_text():
-            c = entry.get()
-            if len(c) == 7 and c[0] == '#':
-                self.font_color = c
-                self.font_color_btn.config(bg=c)
-                self.refresh_display()
-                win.destroy()
-        
-        def apply_bg():
-            c = entry.get()
-            if len(c) == 7 and c[0] == '#':
-                self.bg_color = c
-                self.bg_color_btn.config(bg=c)
-                self.video_canvas.config(bg=c)
-                self.refresh_display()
-                win.destroy()
-        
-        ttk.Button(btn_frame, text="Text", command=apply_text).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Background", command=apply_bg).pack(side=tk.LEFT, padx=5)
+        picker_win.bind('<Button-1>', on_click)
+        picker_win.bind('<Escape>', lambda e: picker_win.destroy())
 
     def find_system_font(self, family):
         import platform
@@ -927,13 +961,22 @@ class TextVideoPlayer:
             if not self.words:
                 return
         
-        filename = filedialog.asksaveasfilename(
-            defaultextension=f".{self.export_format.get()}",
-            filetypes=[("MP4", "*.mp4"), ("AVI", "*.avi"), ("MOV", "*.mov")],
-            title="Export Video"
-        )
-        if not filename:
-            return
+        fmt = self.export_format.get()
+        
+        if fmt == "png_sequence":
+            # For PNG sequence, select a directory
+            foldername = filedialog.askdirectory(title="Select Folder for PNG Sequence")
+            if not foldername:
+                return
+            filename = foldername
+        else:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=f".{fmt}",
+                filetypes=[("MP4", "*.mp4"), ("AVI", "*.avi"), ("MOV", "*.mov")],
+                title="Export Video"
+            )
+            if not filename:
+                return
         
         threading.Thread(target=self._export_thread, args=(filename,), daemon=True).start()
 
@@ -945,12 +988,21 @@ class TextVideoPlayer:
             fps = self.export_fps.get()
             
             fmt = self.export_format.get().lower()
-            fourcc = cv2.VideoWriter_fourcc(*('mp4v' if fmt in ['mp4', 'mov'] else 'XVID'))
-            out = cv2.VideoWriter(filename, fourcc, fps, (w, h))
+            is_png_seq = (fmt == "png_sequence")
+            use_transparency = self.export_transparent.get()
             
-            if not out.isOpened():
-                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to create video"))
-                return
+            # Setup output
+            if is_png_seq:
+                # Create folder for PNG sequence
+                os.makedirs(filename, exist_ok=True)
+                out = None
+            else:
+                fourcc = cv2.VideoWriter_fourcc(*('mp4v' if fmt in ['mp4', 'mov'] else 'XVID'))
+                out = cv2.VideoWriter(filename, fourcc, fps, (w, h))
+                
+                if not out.isOpened():
+                    self.root.after(0, lambda: messagebox.showerror("Error", "Failed to create video"))
+                    return
             
             font_path = self.find_system_font(self.font_family.get())
             font_size = int(self.font_size.get() * h / 1080)
@@ -990,6 +1042,17 @@ class TextVideoPlayer:
             
             frame_count = 0
             
+            # Helper function to write frames
+            def write_frame(frame_data):
+                nonlocal frame_count
+                if is_png_seq:
+                    # Save as PNG
+                    png_path = os.path.join(filename, f"frame_{frame_count:06d}.png")
+                    cv2.imwrite(png_path, frame_data)
+                else:
+                    out.write(frame_data)
+                frame_count += 1
+            
             for loop in range(loops):
                 word_idx = 0
                 loop_frames = 0
@@ -1010,18 +1073,16 @@ class TextVideoPlayer:
                             break
                         op = i / fade_in_f if fade_in_f > 0 else 1.0
                         pop = 1.0 - op if gap < 0 and prev_word else 0.0
-                        frame = self._render_frame(w, h, word, op, prev_word, pop, pil_font, bg, fg)
-                        out.write(frame)
-                        frame_count += 1
+                        frame = self._render_frame(w, h, word, op, prev_word, pop, pil_font, bg, fg, use_transparency)
+                        write_frame(frame)
                         loop_frames += 1
                     
                     # Main
                     for _ in range(main_f):
                         if loop_frames >= bar_limit:
                             break
-                        frame = self._render_frame(w, h, word, 1.0, None, 0, pil_font, bg, fg)
-                        out.write(frame)
-                        frame_count += 1
+                        frame = self._render_frame(w, h, word, 1.0, None, 0, pil_font, bg, fg, use_transparency)
+                        write_frame(frame)
                         loop_frames += 1
                     
                     # Fade out
@@ -1030,24 +1091,23 @@ class TextVideoPlayer:
                             if loop_frames >= bar_limit:
                                 break
                             op = 1.0 - i / fade_out_f if fade_out_f > 0 else 0.0
-                            frame = self._render_frame(w, h, word, op, None, 0, pil_font, bg, fg)
-                            out.write(frame)
-                            frame_count += 1
+                            frame = self._render_frame(w, h, word, op, None, 0, pil_font, bg, fg, use_transparency)
+                            write_frame(frame)
                             loop_frames += 1
                     
                     # Gap
                     if gap > 0:
-                        blank = self._render_frame(w, h, "", 0, None, 0, pil_font, bg, fg)
+                        blank = self._render_frame(w, h, "", 0, None, 0, pil_font, bg, fg, use_transparency)
                         for _ in range(gap_f):
                             if loop_frames >= bar_limit:
                                 break
-                            out.write(blank)
-                            frame_count += 1
+                            write_frame(blank)
                             loop_frames += 1
                     
                     word_idx += 1
             
-            out.release()
+            if not is_png_seq:
+                out.release()
             
             dur = frame_count / fps
             self.root.after(0, lambda: self.export_progress.config(value=100))
@@ -1059,25 +1119,53 @@ class TextVideoPlayer:
             self.root.after(0, lambda: self.export_status.config(text=f"Error: {e}"))
             self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
 
-    def _render_frame(self, w, h, word, op, prev_word, prev_op, font, bg, fg):
-        img = Image.new('RGB', (w, h), bg)
-        draw = ImageDraw.Draw(img)
-        
-        if prev_word and prev_op > 0:
-            color = tuple(int(f * prev_op + b * (1 - prev_op)) for f, b in zip(fg, bg))
-            bbox = draw.textbbox((0, 0), prev_word, font=font)
-            x = (w - bbox[2] + bbox[0]) // 2
-            y = (h - bbox[3] + bbox[1]) // 2
-            draw.text((x, y), prev_word, font=font, fill=color)
-        
-        if word and op > 0:
-            color = tuple(int(f * op + b * (1 - op)) for f, b in zip(fg, bg))
-            bbox = draw.textbbox((0, 0), word, font=font)
-            x = (w - bbox[2] + bbox[0]) // 2
-            y = (h - bbox[3] + bbox[1]) // 2
-            draw.text((x, y), word, font=font, fill=color)
-        
-        return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    def _render_frame(self, w, h, word, op, prev_word, prev_op, font, bg, fg, use_alpha=False):
+        """Render a single frame with optional alpha channel for transparency"""
+        if use_alpha:
+            # Create RGBA image for transparency
+            img = Image.new('RGBA', (w, h), (0, 0, 0, 0))  # Transparent background
+            draw = ImageDraw.Draw(img)
+            
+            if prev_word and prev_op > 0:
+                # Calculate color with alpha
+                alpha = int(255 * prev_op)
+                color = (*fg, alpha)
+                bbox = draw.textbbox((0, 0), prev_word, font=font)
+                x = (w - bbox[2] + bbox[0]) // 2
+                y = (h - bbox[3] + bbox[1]) // 2
+                draw.text((x, y), prev_word, font=font, fill=color)
+            
+            if word and op > 0:
+                # Calculate color with alpha
+                alpha = int(255 * op)
+                color = (*fg, alpha)
+                bbox = draw.textbbox((0, 0), word, font=font)
+                x = (w - bbox[2] + bbox[0]) // 2
+                y = (h - bbox[3] + bbox[1]) // 2
+                draw.text((x, y), word, font=font, fill=color)
+            
+            # Convert RGBA to BGRA for OpenCV
+            return cv2.cvtColor(np.array(img), cv2.COLOR_RGBA2BGRA)
+        else:
+            # Original RGB rendering with background
+            img = Image.new('RGB', (w, h), bg)
+            draw = ImageDraw.Draw(img)
+            
+            if prev_word and prev_op > 0:
+                color = tuple(int(f * prev_op + b * (1 - prev_op)) for f, b in zip(fg, bg))
+                bbox = draw.textbbox((0, 0), prev_word, font=font)
+                x = (w - bbox[2] + bbox[0]) // 2
+                y = (h - bbox[3] + bbox[1]) // 2
+                draw.text((x, y), prev_word, font=font, fill=color)
+            
+            if word and op > 0:
+                color = tuple(int(f * op + b * (1 - op)) for f, b in zip(fg, bg))
+                bbox = draw.textbbox((0, 0), word, font=font)
+                x = (w - bbox[2] + bbox[0]) // 2
+                y = (h - bbox[3] + bbox[1]) // 2
+                draw.text((x, y), word, font=font, fill=color)
+            
+            return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 
 def main():

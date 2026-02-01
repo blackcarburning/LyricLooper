@@ -11,6 +11,7 @@ import threading
 import time
 import os
 import tempfile
+import json
 
 # Audio dependencies for metronome
 try:
@@ -234,6 +235,16 @@ class TextVideoPlayer:
             self.export_progress.pack(fill=tk.X, pady=2)
             self.export_status = ttk.Label(export_frame, text="")
             self.export_status.pack()
+        
+        # Project Settings section
+        settings_frame = ttk.LabelFrame(left_frame, text="Project Settings", padding="10")
+        settings_frame.pack(fill=tk.X, pady=10)
+        settings_btn_frame = ttk.Frame(settings_frame)
+        settings_btn_frame.pack(fill=tk.X)
+        ttk.Button(settings_btn_frame, text="Export Settings", 
+                   command=self.export_settings).pack(side=tk.LEFT, padx=5, expand=True, fill=tk.X)
+        ttk.Button(settings_btn_frame, text="Import Settings", 
+                   command=self.import_settings).pack(side=tk.LEFT, padx=5, expand=True, fill=tk.X)
         
         # Right panel
         right_frame = ttk.Frame(main_frame)
@@ -1204,6 +1215,133 @@ class TextVideoPlayer:
                 draw.text((x, y), word, font=font, fill=color)
             
             return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    
+    def export_settings(self):
+        """Export all settings and text to a JSON file"""
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Export Settings"
+        )
+        if not filename:
+            return
+        
+        settings = {
+            "text_content": self.text_input.get("1.0", tk.END).strip(),
+            "bpm": self.bpm.get(),
+            "word_note_value": self.word_note_value.get(),
+            "fade_in_note": self.fade_in_note.get(),
+            "fade_out_note": self.fade_out_note.get(),
+            "gap_note": self.gap_note.get(),
+            "gap_negative": self.gap_negative.get(),
+            "time_signature_num": self.time_signature_num.get(),
+            "time_signature_den": self.time_signature_den.get(),
+            "loop_enabled": self.loop_enabled.get(),
+            "loop_mode": self.loop_mode.get(),
+            "loop_bars": self.loop_bars.get(),
+            "loop_times": self.loop_times.get(),
+            "loop_infinite": self.loop_infinite.get(),
+            "start_word": self.start_word.get(),
+            "font_family": self.font_family.get(),
+            "font_size": self.font_size.get(),
+            "font_color": self.font_color,
+            "bg_color": self.bg_color,
+            "aspect_ratio": self.aspect_ratio.get(),
+            "export_fps": self.export_fps.get(),
+            "export_format": self.export_format.get(),
+            "export_resolution": self.export_resolution.get(),
+            "metronome_enabled": self.metronome_enabled.get(),
+            "metronome_volume": self.metronome_volume.get(),
+            "count_in": self.count_in.get()
+        }
+        
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, indent=2, ensure_ascii=False)
+            messagebox.showinfo("Success", f"Settings exported to:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to export settings:\n{e}")
+    
+    def import_settings(self):
+        """Import settings from a JSON file"""
+        filename = filedialog.askopenfilename(
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Import Settings"
+        )
+        if not filename:
+            return
+        
+        try:
+            with open(filename, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+            
+            if "text_content" in settings:
+                self.text_input.delete("1.0", tk.END)
+                self.text_input.insert("1.0", settings["text_content"])
+            if "bpm" in settings:
+                self.bpm.set(settings["bpm"])
+            if "word_note_value" in settings:
+                self.word_note_value.set(settings["word_note_value"])
+            if "fade_in_note" in settings:
+                self.fade_in_note.set(settings["fade_in_note"])
+            if "fade_out_note" in settings:
+                self.fade_out_note.set(settings["fade_out_note"])
+            if "gap_note" in settings:
+                self.gap_note.set(settings["gap_note"])
+            if "gap_negative" in settings:
+                self.gap_negative.set(settings["gap_negative"])
+            if "time_signature_num" in settings:
+                self.time_signature_num.set(settings["time_signature_num"])
+            if "time_signature_den" in settings:
+                self.time_signature_den.set(settings["time_signature_den"])
+            if "loop_enabled" in settings:
+                self.loop_enabled.set(settings["loop_enabled"])
+            if "loop_mode" in settings:
+                self.loop_mode.set(settings["loop_mode"])
+            if "loop_bars" in settings:
+                self.loop_bars.set(settings["loop_bars"])
+            if "loop_times" in settings:
+                self.loop_times.set(settings["loop_times"])
+            if "loop_infinite" in settings:
+                self.loop_infinite.set(settings["loop_infinite"])
+            if "start_word" in settings:
+                self.start_word.set(settings["start_word"])
+            if "font_family" in settings:
+                self.font_family.set(settings["font_family"])
+            if "font_size" in settings:
+                self.font_size.set(settings["font_size"])
+            if "font_color" in settings:
+                self.font_color = settings["font_color"]
+                self.font_color_btn.config(bg=self.font_color)
+            if "bg_color" in settings:
+                self.bg_color = settings["bg_color"]
+                self.bg_color_btn.config(bg=self.bg_color)
+                self.video_canvas.config(bg=self.bg_color)
+            if "aspect_ratio" in settings:
+                self.aspect_ratio.set(settings["aspect_ratio"])
+            if "export_fps" in settings:
+                self.export_fps.set(settings["export_fps"])
+            if "export_format" in settings:
+                self.export_format.set(settings["export_format"])
+            if "export_resolution" in settings:
+                self.export_resolution.set(settings["export_resolution"])
+            if "metronome_enabled" in settings:
+                self.metronome_enabled.set(settings["metronome_enabled"])
+            if "metronome_volume" in settings:
+                self.metronome_volume.set(settings["metronome_volume"])
+                if AUDIO_AVAILABLE:
+                    self.update_metronome_volume()
+            if "count_in" in settings:
+                self.count_in.set(settings["count_in"])
+            
+            self.load_text()
+            self.update_timing_display()
+            self.update_video_aspect()
+            self.on_infinite_toggle()
+            
+            messagebox.showinfo("Success", f"Settings imported from:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to import settings:\n{e}")
 
 
 def main():

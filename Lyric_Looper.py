@@ -10,6 +10,7 @@ from tkinter import ttk, colorchooser, font as tkfont, filedialog, messagebox
 import threading
 import time
 import os
+import tempfile
 
 # Audio dependencies for metronome
 try:
@@ -970,8 +971,8 @@ class TextVideoPlayer:
                 return
             filename = foldername
         else:
-            # ProRes 4444 uses .mov extension
-            if fmt == "prores4444":
+            # ProRes 4444 and MOV use .mov extension
+            if fmt in ["prores4444", "mov"]:
                 default_ext = ".mov"
             else:
                 default_ext = f".{fmt}"
@@ -1023,7 +1024,7 @@ class TextVideoPlayer:
                         out = cv2.VideoWriter(filename, fourcc, fps, (w, h), True)
                         if not out.isOpened():
                             raise Exception("ProRes with alpha not supported by OpenCV")
-                    except:
+                    except Exception:
                         self.root.after(0, lambda: messagebox.showwarning(
                             "Warning", 
                             "ProRes 4444 with transparency not fully supported by OpenCV.\n"
@@ -1031,7 +1032,6 @@ class TextVideoPlayer:
                             "Use FFmpeg to convert: ffmpeg -i frame_%06d.png -c:v prores_ks -profile:v 4444 -pix_fmt yuva444p10le output.mov"
                         ))
                         # Fallback to PNG sequence
-                        import tempfile
                         filename = tempfile.mkdtemp(prefix="prores_frames_")
                         is_png_seq = True
                         out = None

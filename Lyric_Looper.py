@@ -213,7 +213,7 @@ class TextVideoPlayer:
             format_frame.pack(fill=tk.X, pady=2)
             ttk.Label(format_frame, text="Format:").pack(side=tk.LEFT)
             ttk.Combobox(format_frame, textvariable=self.export_format,
-                        values=["mp4", "avi", "mov", "png_sequence"], state="readonly", width=12).pack(side=tk.LEFT, padx=5)
+                        values=["mp4", "avi", "mov", "prores4444", "png_sequence"], state="readonly", width=12).pack(side=tk.LEFT, padx=5)
             ttk.Label(format_frame, text="FPS:").pack(side=tk.LEFT, padx=(10, 0))
             ttk.Combobox(format_frame, textvariable=self.export_fps,
                         values=[24, 25, 30, 48, 50, 60], width=6).pack(side=tk.LEFT, padx=5)
@@ -970,9 +970,15 @@ class TextVideoPlayer:
                 return
             filename = foldername
         else:
+            # ProRes 4444 uses .mov extension
+            if fmt == "prores4444":
+                default_ext = ".mov"
+            else:
+                default_ext = f".{fmt}"
+            
             filename = filedialog.asksaveasfilename(
-                defaultextension=f".{fmt}",
-                filetypes=[("MP4", "*.mp4"), ("AVI", "*.avi"), ("MOV", "*.mov")],
+                defaultextension=default_ext,
+                filetypes=[("MP4", "*.mp4"), ("AVI", "*.avi"), ("MOV", "*.mov"), ("ProRes 4444", "*.mov")],
                 title="Export Video"
             )
             if not filename:
@@ -997,10 +1003,42 @@ class TextVideoPlayer:
                 os.makedirs(filename, exist_ok=True)
                 out = None
             else:
-                fourcc = cv2.VideoWriter_fourcc(*('mp4v' if fmt in ['mp4', 'mov'] else 'XVID'))
-                out = cv2.VideoWriter(filename, fourcc, fps, (w, h))
+                # Determine FourCC codec based on format
+                if fmt == "prores4444":
+                    fourcc = cv2.VideoWriter_fourcc(*'ap4h')  # ProRes 4444
+                elif fmt in ['mp4', 'mov']:
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                else:
+                    fourcc = cv2.VideoWriter_fourcc(*'XVID')
                 
-                if not out.isOpened():
+                # For ProRes 4444 with transparency, we need BGRA (4 channels)
+                is_prores_alpha = (fmt == "prores4444" and use_transparency)
+                
+                # Create VideoWriter with appropriate channel count
+                if is_prores_alpha:
+                    # ProRes 4444 with alpha requires special handling
+                    # OpenCV may not fully support BGRA VideoWriter on all platforms
+                    # We'll attempt it and fallback to PNG sequence if it fails
+                    try:
+                        out = cv2.VideoWriter(filename, fourcc, fps, (w, h), True)
+                        if not out.isOpened():
+                            raise Exception("ProRes with alpha not supported by OpenCV")
+                    except:
+                        self.root.after(0, lambda: messagebox.showwarning(
+                            "Warning", 
+                            "ProRes 4444 with transparency not fully supported by OpenCV.\n"
+                            "Exporting as PNG sequence instead.\n"
+                            "Use FFmpeg to convert: ffmpeg -i frame_%06d.png -c:v prores_ks -profile:v 4444 -pix_fmt yuva444p10le output.mov"
+                        ))
+                        # Fallback to PNG sequence
+                        import tempfile
+                        filename = tempfile.mkdtemp(prefix="prores_frames_")
+                        is_png_seq = True
+                        out = None
+                else:
+                    out = cv2.VideoWriter(filename, fourcc, fps, (w, h))
+                
+                if not is_png_seq and not out.isOpened():
                     self.root.after(0, lambda: messagebox.showerror("Error", "Failed to create video"))
                     return
             

@@ -152,12 +152,12 @@ class TextVideoPlayer:
         
         start_btn_frame = ttk.Frame(start_frame)
         start_btn_frame.pack(fill=tk.X)
-        ttk.Button(start_btn_frame, text="â® First", command=self.goto_first).pack(side=tk.LEFT, padx=2)
-        ttk.Button(start_btn_frame, text="â—€ -10", command=lambda: self.adjust_start(-10)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(start_btn_frame, text="â—€ -1", command=lambda: self.adjust_start(-1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(start_btn_frame, text="+1 â–¶", command=lambda: self.adjust_start(1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(start_btn_frame, text="+10 â–¶", command=lambda: self.adjust_start(10)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(start_btn_frame, text="Last â­", command=self.goto_last).pack(side=tk.LEFT, padx=2)
+        ttk.Button(start_btn_frame, text="<< First", command=self.goto_first).pack(side=tk.LEFT, padx=2)
+        ttk.Button(start_btn_frame, text="<< -10", command=lambda: self.adjust_start(-10)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(start_btn_frame, text="< -1", command=lambda: self.adjust_start(-1)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(start_btn_frame, text="+1 >", command=lambda: self.adjust_start(1)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(start_btn_frame, text="+10 >>", command=lambda: self.adjust_start(10)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(start_btn_frame, text="Last >>", command=self.goto_last).pack(side=tk.LEFT, padx=2)
         
         # Loop settings
         loop_frame = ttk.LabelFrame(left_frame, text="Loop Settings", padding="10")
@@ -201,7 +201,7 @@ class TextVideoPlayer:
         export_frame.pack(fill=tk.X, pady=10)
         
         if not VIDEO_EXPORT_AVAILABLE:
-            ttk.Label(export_frame, text="âš ï¸ Install opencv-python, numpy, pillow",
+            ttk.Label(export_frame, text="[!] Install opencv-python, numpy, pillow",
                      foreground="red").pack()
         else:
             format_frame = ttk.Frame(export_frame)
@@ -331,7 +331,7 @@ class TextVideoPlayer:
         metro_frame.pack(fill=tk.X, pady=5)
         
         if not AUDIO_AVAILABLE:
-            ttk.Label(metro_frame, text="âš ï¸ Install pygame for metronome", foreground="orange").pack()
+            ttk.Label(metro_frame, text="[!] Install pygame for metronome", foreground="orange").pack()
         else:
             metro_ctrl = ttk.Frame(metro_frame)
             metro_ctrl.pack(fill=tk.X)
@@ -386,10 +386,10 @@ class TextVideoPlayer:
         btn_frame = ttk.Frame(playback_frame)
         btn_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Button(btn_frame, text="â–¶ Play", command=self.play).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="â¸ Pause", command=self.pause).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="â¹ Stop", command=self.stop).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="â® Restart", command=self.restart).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Play", command=self.play).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Pause", command=self.pause).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Stop", command=self.stop).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Restart", command=self.restart).pack(side=tk.LEFT, padx=5)
         
         self.count_in = tk.BooleanVar(value=True)
         ttk.Checkbutton(btn_frame, text="Count-in", variable=self.count_in).pack(side=tk.LEFT, padx=20)
@@ -490,10 +490,10 @@ class TextVideoPlayer:
                 loop_dur = single_pass
                 
             if self.loop_infinite.get():
-                self.duration_label.config(text=f"Duration: {loop_dur:.2f}s Ã— âˆž")
+                self.duration_label.config(text=f"Duration: {loop_dur:.2f}s x inf")
             else:
                 total = loop_dur * self.loop_times.get()
-                self.duration_label.config(text=f"Duration: {total:.2f}s ({self.loop_times.get()}Ã—)")
+                self.duration_label.config(text=f"Duration: {total:.2f}s ({self.loop_times.get()}x)")
         else:
             mins = int(single_pass // 60)
             secs = single_pass % 60
@@ -606,7 +606,7 @@ class TextVideoPlayer:
 
     def update_loop_display(self):
         if self.loop_infinite.get():
-            self.loop_status_label.config(text=f"Loop: {self.loop_current + 1} / âˆž")
+            self.loop_status_label.config(text=f"Loop: {self.loop_current + 1} / inf")
         else:
             self.loop_status_label.config(text=f"Loop: {self.loop_current + 1} / {self.loop_times.get()}")
 
@@ -800,8 +800,7 @@ class TextVideoPlayer:
 
     def restart(self):
         self.stop()
-        time.sleep(0.1)
-        self.play()
+        self.root.after(100, self.play)
 
     def on_seek(self, val):
         if self.words:

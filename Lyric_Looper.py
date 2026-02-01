@@ -69,6 +69,7 @@ class TextVideoPlayer:
         self.play_thread = None
         self.playback_start_time = 0
         self.loop_current = 0
+        self._updating_aspect = False  # Guard flag to prevent infinite recursion
         
         self.note_values = {
             "1/32": 1/8, "1/16": 1/4, "1/8": 1/2, "1/4": 1,
@@ -506,24 +507,30 @@ class TextVideoPlayer:
             self.metronome_sound.accent_sound.set_volume(v)
 
     def update_video_aspect(self):
-        self.root.update_idletasks()
-        cw = self.video_container.winfo_width()
-        ch = self.video_container.winfo_height()
-        if cw < 10 or ch < 10:
-            cw, ch = 640, 480
-        
-        w, h = map(int, self.aspect_ratio.get().split(":"))
-        ratio = w / h
-        
-        if cw / ch > ratio:
-            canvas_h = ch - 20
-            canvas_w = int(canvas_h * ratio)
-        else:
-            canvas_w = cw - 20
-            canvas_h = int(canvas_w / ratio)
-        
-        self.video_canvas.config(width=canvas_w, height=canvas_h)
-        self.refresh_display()
+        if self._updating_aspect:
+            return
+        self._updating_aspect = True
+        try:
+            self.root.update_idletasks()
+            cw = self.video_container.winfo_width()
+            ch = self.video_container.winfo_height()
+            if cw < 10 or ch < 10:
+                cw, ch = 640, 480
+            
+            w, h = map(int, self.aspect_ratio.get().split(":"))
+            ratio = w / h
+            
+            if cw / ch > ratio:
+                canvas_h = ch - 20
+                canvas_w = int(canvas_h * ratio)
+            else:
+                canvas_w = cw - 20
+                canvas_h = int(canvas_w / ratio)
+            
+            self.video_canvas.config(width=canvas_w, height=canvas_h)
+            self.refresh_display()
+        finally:
+            self._updating_aspect = False
 
     def load_text(self):
         text = self.text_input.get("1.0", tk.END).strip()

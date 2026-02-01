@@ -70,6 +70,7 @@ class TextVideoPlayer:
         self.playback_start_time = 0
         self.loop_current = 0
         self._updating_aspect = False  # Guard flag to prevent infinite recursion
+        self._updating_seek = False  # Guard flag to prevent infinite recursion in seek
         
         self.note_values = {
             "1/32": 1/8, "1/16": 1/4, "1/8": 1/2, "1/4": 1,
@@ -595,7 +596,14 @@ class TextVideoPlayer:
         total = len(self.words) - start
         current = self.current_word_index - start + 1
         self.progress_label.config(text=f"Word {current} / {total}")
-        self.seek_scale.set(self.current_word_index)
+        
+        # Only update seek scale if we're not already handling a seek event
+        if not self._updating_seek:
+            self._updating_seek = True
+            try:
+                self.seek_scale.set(self.current_word_index)
+            finally:
+                self._updating_seek = False
 
     def update_beat_display(self, beat, bar, elapsed):
         self.beat_label.config(text=f"Beat: {beat+1} | Bar: {bar+1}")
@@ -810,11 +818,17 @@ class TextVideoPlayer:
         self.root.after(100, self.play)
 
     def on_seek(self, val):
-        if self.words:
-            self.current_word_index = int(float(val))
-            self.update_progress()
-            if not self.is_playing:
-                self.refresh_display()
+        if self._updating_seek:
+            return
+        self._updating_seek = True
+        try:
+            if self.words:
+                self.current_word_index = int(float(val))
+                self.update_progress()
+                if not self.is_playing:
+                    self.refresh_display()
+        finally:
+            self._updating_seek = False
 
     def pick_font_color(self):
         color = colorchooser.askcolor(initialcolor=self.font_color, title="Text Color")
